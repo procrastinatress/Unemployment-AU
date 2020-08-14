@@ -1,0 +1,92 @@
+---
+title: "more messing around"
+author: "Lok Sze Victoria Chen"
+date: "19/05/2020"
+output: html_document
+---
+
+Libraries are loaded.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Install necessary packages
+#install.packages("gtrendsR")
+
+# Load libraries
+library(gtrendsR)
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(gtrendsR)
+library(tidytext)
+library(igraph)
+library(ggraph)
+```
+
+Latest data from (past 12 months) is pulled from Google Trends.
+
+```{r}
+# Grab data using gTrends
+searches <- gtrends("unemployment", 
+               geo=c("AU"),
+                time="today 12-m")
+
+# Convert data into table
+searches_timeseries <- as_tibble(searches$interest_over_time) %>% 
+  mutate(date = ymd(date)) # convert date format
+```
+
+Timeseries lineplot is generated.
+```{r}
+ggplot(searches_timeseries) +
+  
+  # Plot timeseries
+  geom_line(aes(date, hits)) +
+  
+
+ggsave("lineplot.png")
+```
+
+
+```{r}
+# Search for related queries
+related_searches <- as_tibble(searches$related_queries) %>% 
+  filter(keyword=="unemployment")
+
+# Format data for network plot
+network <- related_searches %>% 
+  
+  # Use tokenizing to examine consecutive words
+  unnest_tokens(bigram, value, token='ngrams', n=2) %>% # examining a set of 2 consecutive words
+  
+  # Separate into columns
+  separate(bigram, c("word1", "word2"), sep=" ") %>% 
+  count(word1, word2) %>%
+  
+  # filter out NAs
+  filter(!is.na(word1)) %>% 
+  filter(!is.na(word2)) %>%
+  
+  # Turn into igraph object
+  graph_from_data_frame()
+
+# Create plot
+ggraph(network, layout ="kk") +
+  
+  # Modify edges
+  geom_edge_link(edge_alpha=0.2) +
+  
+  # Customise nodes
+  geom_node_point(color = 'pink', size = 5) + 
+  geom_node_text(aes(label=name)) + # labels
+  
+  # Customise aesthetics
+  theme_void()+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+ggsave("network.png")
+```
